@@ -1,0 +1,309 @@
+---
+title: "Size Permanence v5.1"
+author: "Kimberly A. Brink"
+date: '`r format(Sys.Date(),"%B %d, %Y")`'
+output: html_document
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE)
+```
+
+```{r install_libraries}
+library(lubridate)
+library(Hmisc)
+```
+
+```{r load_file}
+#detach(sizep)
+filename="/Volumes/lsa-research01/ALL STUDIES/Current Studies/Size Permanence/SP 5.1/SP 5.1 - Data.sav"
+sizep <- spss.get(filename,datevars=c("DOB","DOT"))
+
+s.error <- function(x) sd(x)/sqrt(length(x))
+```
+
+```{r calculate_variables}
+sizep$DOB[sizep$SubID==219]='2015-06-09'
+sizep$Age = (year(as.period(new_interval(sizep$DOB, sizep$DOT)))*12) + month(as.period(new_interval(sizep$DOB, sizep$DOT))) + (day(as.period(new_interval(sizep$DOB, sizep$DOT)))/30)
+```
+
+###Demographics.
+There were `r length(sizep$SubID)` participants.
+
+```{r new_participants}
+sizep = sizep[which(sizep$DOT>as.Date("2015-09-20")),]
+```
+
+```{r computer_error}
+sizep$PossTest.Average = (sizep$PossTest1+sizep$PossTest2+sizep$PossTest3)/3
+sizep$ImpTest.Average = (sizep$ImpTest1+sizep$ImpTest2+sizep$ImpTest3)/3
+
+sizep = sizep[which(sizep$PossTest.Average!='NA'),]
+sizep = sizep[which(sizep$ImpTest.Average!='NA'),]
+```
+
+```{r outliers}
+# averages = append(sizep$PossTest.Average, sizep$ImpTest.Average)
+# sizep = sizep[which(sizep$PossTest.Average <= (mean(averages)+(2*sd(averages)))),]
+# sizep = sizep[which(sizep$ImpTest.Average <= (mean(averages)+(2*sd(averages)))),]
+# sizep = sizep[which(sizep$PossTest.Average >= (mean(averages)-(2*sd(averages)))),]
+# sizep = sizep[which(sizep$ImpTest.Average >= (mean(averages)-(2*sd(averages)))),]
+# 
+# length(sizep$SubID)
+```
+
+After removing for computer error and outliers, there are `r length(sizep$SubID)` participants. 
+```{r demographics}
+attach(sizep)
+
+isGirl <- sizep$Sex == "Female"
+impossibleFirst <- sizep$FirstTest == "Impossible"
+```
+
+The average age of the sample is `r round(mean(Age), digits = 2)` months.
+
+The minimum age of the sample is `r round(min(Age), digits = 2)` months.
+
+The maximum age of the sample is `r round(max(Age), digits = 2)` months.
+
+There are `r sum(isGirl)` (`r round((sum(isGirl)/length(isGirl))*100, digits = 2)`%) females in the sample.
+
+`r sum(impossibleFirst)` (`r round((sum(impossibleFirst)/length(impossibleFirst))*100, digits = 2)`%) participants saw the impossible trial first.
+
+The first date of test was `r min(DOT)`.
+
+The most recent date of test was `r max(DOT)`.
+
+
+#All infants.
+##Tests for normality
+```{r histograms, fig.width = 8, fig.height = 5}
+# hist(PossTest1)
+# hist(ImpTest1)
+# hist(PossTest2)
+# hist(ImpTest2)
+# hist(PossTest3)
+# hist(ImpTest3)
+```
+
+```{r boxplot}
+boxplot(PossTest1, PossTest2, PossTest3, ImpTest1, ImpTest2, ImpTest3, col = c(rep("darkblue",3),rep("red",3)))
+```
+
+#Bar Graph Medians, All participants
+```{r barplot_medians, fig.path='Figures/', dev=c('png','postscript'), fig.width = 8, fig.height = 7}
+medians <- matrix(c(median(PossTest1),median(PossTest2),median(PossTest3),median(ImpTest1),median(ImpTest2),median(ImpTest3)),ncol=3,byrow=TRUE)
+colnames(medians) <- c("Test Trial 1","Test Trial 2","Test Trial 3")
+rownames(medians) <- c("Possible","Impossible")
+medians <- as.table(medians)
+
+g.range = range(0,ceiling(max(medians))+5)
+
+plot.new()
+barCenters <- barplot(medians, col=c("darkblue","red"), legend = rownames(medians), ylab = "Median Looking Time (sec)", beside = TRUE, ylim=g.range)
+text(barCenters,medians+1.5,label=round(medians,2))
+```
+
+```{r barplot, fig.path='Figures/', dev=c('png','postscript'), fig.width = 8, fig.height = 7}
+# means <- matrix(c(mean(PossTest1),mean(PossTest2),mean(PossTest3),mean(ImpTest1),mean(ImpTest2),mean(ImpTest3)),ncol=3,byrow=TRUE)
+# colnames(means) <- c("Test Trial 1","Test Trial 2","Test Trial 3")
+# rownames(means) <- c("Possible","Impossible")
+# means <- as.table(means)
+# 
+# g.range = range(0,ceiling(max(means))+5)
+# 
+# plot.new()
+# barCenters <- barplot(means, col=c("darkblue","red"), legend = rownames(means), ylab = "Mean Looking Time (sec)", beside = TRUE, ylim=g.range)
+# text(barCenters,means+1.5,label=means)
+```
+
+#Wilcox Tests
+Because the looking times for each test trial were not normally distributed, infants’ looking times were compared using a Wilcoxon signed-rank test for each test trial pair (e.g., the first Impossible test trial was compared to the first Possible test trial). 
+
+```{r wilcox_tests}
+t1 = wilcox.test(ImpTest1,PossTest1,paired=TRUE)
+Z1 = round(qnorm(t1$p.value/2),digits = 2)
+p1 = round(t1$p.value, digits = 2)
+p1 <- ifelse(p1<0.001, 0.001, ifelse(p1<0.01, 0.01, ifelse(p1<0.05,0.05,p1)))
+
+t2 = wilcox.test(ImpTest2,PossTest2,paired=TRUE)
+Z2 = round(qnorm(t2$p.value/2), digits = 2)
+p2 = round(t2$p.value, digits = 2)
+p2 <- ifelse(p2<0.001, 0.001, ifelse(p2<0.01, 0.01, ifelse(p2<0.05,0.05,p2)))
+
+t3 = wilcox.test(ImpTest3,PossTest3,paired=TRUE)
+Z3 = round(qnorm(t3$p.value/2), digits = 2)
+p3 = round(t3$p.value, digits = 2)
+p3 <- ifelse(p3<0.001, 0.001, ifelse(p3<0.01, 0.01, ifelse(p3<0.05,0.05,p3)))
+
+```
+There was no difference in looking times between the first Possible test event (Median =
+`r median(PossTest1)`) and the first Impossible event (Median = 
+`r median(ImpTest1)`),  (Wilcoxon *Z* = `r Z1`,  *p* = `r p1`)
+
+There was no difference in looking times between the second Possible test event (Median = `r median(PossTest2)`) and the second Impossible event (Median = 
+`r median(ImpTest2)`),  (Wilcoxon *Z* = `r Z2`,  *p* = `r p2`).
+
+There was a difference in looking times between the third Possible test event (Median =
+`r median(PossTest3)`) and the third Impossible event (Median = 
+`r median(ImpTest3)`),  (Wilcoxon *Z* = `r Z3`,  *p* = `r p3`).
+
+#Bar Graph Means, All Participants.
+```{r barplot_means, fig.path='Figures/', dev=c('png','postscript'), fig.width = 8, fig.height = 7}
+means <- matrix(c(mean(PossTest1),mean(PossTest2),mean(PossTest3),mean(ImpTest1),mean(ImpTest2),mean(ImpTest3)),ncol=3,byrow=TRUE)
+
+se <- matrix(c(s.error(PossTest1),s.error(PossTest2),s.error(PossTest3),s.error(ImpTest1),s.error(ImpTest2),s.error(ImpTest3)),ncol=3,byrow=TRUE)
+colnames(means) <- c("Test Trial 1","Test Trial 2","Test Trial 3")
+rownames(means) <- c("Possible","Impossible")
+means <- as.table(means)
+meansR <- round(means,2)
+g.range = range(0,ceiling(max(means))+10)
+
+plot.new()
+barCenters <- barplot(means, col=c("darkblue","red"), legend = rownames(means), ylab = "mean Looking Time (sec)", beside = TRUE, ylim=g.range)
+arrows(barCenters, means-se, barCenters, means+se, lwd=2, length=0.05, angle=90, code=3)
+text(barCenters,means+se+1.5,label=meansR)
+```
+
+#Paired T-Tests.
+```{r ttest}
+t1 = t.test(ImpTest1,PossTest1,paired=TRUE)
+
+t2 = t.test(ImpTest2,PossTest2,paired=TRUE)
+
+t3 = t.test(ImpTest3,PossTest3,paired=TRUE)
+```
+
+There was no difference in looking times between the first Possible test event (M =
+`r round(mean(PossTest1), 2)`) and the first Impossible event (M = 
+`r round(mean(ImpTest1),2)`),  (t(`r round(t1$parameter,2)`) = `r round(t1$statistic,2)`,  *p* = `r round(t1$p.value,2)`).
+
+There was no difference in looking times between the second Possible test event (M = 
+`r round(mean(PossTest2),2)`) and the second Impossible event (M = 
+`r round(mean(ImpTest2),2)`),  (t(`r round(t2$parameter,2)`) = `r round(t2$statistic,2)`,  *p* = `r round(t2$p.value,2)`).
+
+There was a difference in looking times between the third Possible test event (M =
+`r round(mean(PossTest3),2)`) and the third Impossible event (M = 
+`r round(mean(ImpTest3),2)`),  (t(`r round(t3$parameter,2)`) = `r round(t3$statistic,2)`,  *p* = `r round(t3$p.value,2)`).
+\clearpage
+
+#Infants older than 6.5 months
+
+```{r age_65}
+detach(sizep)
+sizep = sizep[which(sizep$Age>=6.5),]
+attach(sizep)
+
+isGirl <- sizep$Sex == "Female"
+impossibleFirst <- sizep$FirstTest == "Impossible"
+```
+
+There are `r length(sizep$SubID)` participants 6.5 months or older.
+
+The average age of the sample is `r round(mean(Age), digits = 2)` months.
+
+The minimum age of the sample is `r round(min(Age), digits = 2)` months.
+
+The maximum age of the sample is `r round(max(Age), digits = 2)` months.
+
+There are `r sum(isGirl)` (`r round((sum(isGirl)/length(isGirl))*100, digits = 2)`%) females in the sample.
+
+`r sum(impossibleFirst)` (`r round((sum(impossibleFirst)/length(impossibleFirst))*100, digits = 2)`%) participants saw the impossible trial first.
+
+The most recent date of test was `r max(DOT)`.
+
+##Tests for normality
+```{r histograms_65, fig.width = 8, fig.height = 5}
+# hist(PossTest1)
+# hist(ImpTest1)
+# hist(PossTest2)
+# hist(ImpTest2)
+# hist(PossTest3)
+# hist(ImpTest3)
+```
+
+```{r boxplot_65}
+boxplot(PossTest1, PossTest2, PossTest3, ImpTest1, ImpTest2, ImpTest3, col = c(rep("darkblue",3),rep("red",3)))
+```
+
+#Bar Graph Medians
+```{r barplot_medians_65, fig.path='Figures/', dev=c('png','postscript'), fig.width = 8, fig.height = 7}
+medians <- matrix(c(median(PossTest1),median(PossTest2),median(PossTest3),median(ImpTest1),median(ImpTest2),median(ImpTest3)),ncol=3,byrow=TRUE)
+colnames(medians) <- c("Test Trial 1","Test Trial 2","Test Trial 3")
+rownames(medians) <- c("Possible","Impossible")
+medians <- as.table(medians)
+
+g.range = range(0,ceiling(max(medians))+5)
+
+plot.new()
+barCenters <- barplot(medians, col=c("darkblue","red"), legend = rownames(medians), ylab = "Median Looking Time (sec)", beside = TRUE, ylim=g.range)
+text(barCenters,medians+1.5,label=round(medians,2))
+```
+
+#Wilcox Test
+Because the looking times for each test trial were not normally distributed, infants’ looking times were compared using a Wilcoxon signed-rank test for each test trial pair (e.g., the first Impossible test trial was compared to the first Possible test trial). 
+
+```{r wilcox_tests_65}
+t1 = wilcox.test(ImpTest1,PossTest1,paired=TRUE)
+Z1 = round(qnorm(t1$p.value/2),digits = 2)
+p1 = round(t1$p.value, digits = 2)
+p1 <- ifelse(p1<0.001, 0.001, ifelse(p1<0.01, 0.01, ifelse(p1<0.05,0.05,p1)))
+
+t2 = wilcox.test(ImpTest2,PossTest2,paired=TRUE)
+Z2 = round(qnorm(t2$p.value/2), digits = 2)
+p2 = round(t2$p.value, digits = 2)
+p2 <- ifelse(p2<0.001, 0.001, ifelse(p2<0.01, 0.01, ifelse(p2<0.05,0.05,p2)))
+
+t3 = wilcox.test(ImpTest3,PossTest3,paired=TRUE)
+Z3 = round(qnorm(t3$p.value/2), digits = 2)
+p3 = round(t3$p.value, digits = 2)
+p3 <- ifelse(p3<0.001, 0.001, ifelse(p3<0.01, 0.01, ifelse(p3<0.05,0.05,p3)))
+
+```
+There was no difference in looking times between the first Possible test event (Median =
+`r median(PossTest1)`) and the first Impossible event (Median = 
+`r median(ImpTest1)`),  (Wilcoxon *Z* = `r Z1`,  *p* = `r p1`)
+
+There was no difference in looking times between the second Possible test event (Median = `r median(PossTest2)`) and the second Impossible event (Median = 
+`r median(ImpTest2)`),  (Wilcoxon *Z* = `r Z2`,  *p* = `r p2`).
+
+There was a difference in looking times between the third Possible test event (Median =
+`r median(PossTest3)`) and the third Impossible event (Median = 
+`r median(ImpTest3)`),  (Wilcoxon *Z* = `r Z3`,  *p* = `r p3`).
+
+#Bar Graph Means
+```{r barplot_means_65, fig.path='Figures/', dev=c('png','postscript'), fig.width = 8, fig.height = 7}
+means <- matrix(c(mean(PossTest1),mean(PossTest2),mean(PossTest3),mean(ImpTest1),mean(ImpTest2),mean(ImpTest3)),ncol=3,byrow=TRUE)
+se <- matrix(c(s.error(PossTest1),s.error(PossTest2),s.error(PossTest3),s.error(ImpTest1),s.error(ImpTest2),s.error(ImpTest3)),ncol=3,byrow=TRUE)
+
+colnames(means) <- c("Test Trial 1","Test Trial 2","Test Trial 3")
+rownames(means) <- c("Possible","Impossible")
+means <- as.table(means)
+meansR <- round(means,2)
+g.range = range(0,ceiling(max(means))+10)
+
+plot.new()
+barCenters <- barplot(means, col=c("darkblue","red"), legend = rownames(means), ylab = "mean Looking Time (sec)", beside = TRUE, ylim=g.range)
+arrows(barCenters, means-se, barCenters, means+se, lwd = 2, length=0.05, angle=90, code=3)
+text(barCenters,means+se+1.5,label=meansR)
+```
+
+```{r ttest_65}
+t1 = t.test(ImpTest1,PossTest1,paired=TRUE)
+
+t2 = t.test(ImpTest2,PossTest2,paired=TRUE)
+
+t3 = t.test(ImpTest3,PossTest3,paired=TRUE)
+```
+
+There was no difference in looking times between the first Possible test event (M =
+`r round(mean(PossTest1), 2)`) and the first Impossible event (M = 
+`r round(mean(ImpTest1),2)`),  (t(`r round(t1$parameter,2)`) = `r round(t1$statistic,2)`,  *p* = `r round(t1$p.value,2)`).
+
+There was no difference in looking times between the second Possible test event (M = 
+`r round(mean(PossTest2),2)`) and the second Impossible event (M = 
+`r round(mean(ImpTest2),2)`),  (t(`r round(t2$parameter,2)`) = `r round(t2$statistic,2)`,  *p* = `r round(t2$p.value,2)`).
+
+There was a difference in looking times between the third Possible test event (M =
+`r round(mean(PossTest3),2)`) and the third Impossible event (M = 
+`r round(mean(ImpTest3),2)`),  (t(`r round(t3$parameter,2)`) = `r round(t3$statistic,2)`,  *p* = `r round(t3$p.value,2)`).
